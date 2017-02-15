@@ -5,6 +5,7 @@ package collector
 import (
 	"database/sql"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -72,6 +73,7 @@ func ScrapeGlobalStatus(db *sql.DB, ch chan<- prometheus.Metric) error {
 		"wsrep_local_state_uuid":   "",
 		"wsrep_cluster_state_uuid": "",
 		"wsrep_provider_version":   "",
+		"wsrep_evs_repl_latency":   "",
 	}
 
 	for globalStatusRows.Next() {
@@ -134,6 +136,40 @@ func ScrapeGlobalStatus(db *sql.DB, ch chan<- prometheus.Metric) error {
 				[]string{"wsrep_local_state_uuid", "wsrep_cluster_state_uuid", "wsrep_provider_version"}, nil),
 			prometheus.GaugeValue, 1, textItems["wsrep_local_state_uuid"], textItems["wsrep_cluster_state_uuid"], textItems["wsrep_provider_version"],
 		)
+	}
+
+	if textItems["wsrep_evs_repl_latency"] != "" {
+		galeraReplLatencyArray := strings.Split(textItems["wsrep_evs_repl_latency"], "/")
+		galeraReplLatencyDesc := prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, globalStatus, "wsrep_evs_repl_latency"),
+			"PXC/Galera replication latency on group communication.",
+			[]string{"aggregator"}, nil,
+		)
+		if floatVal, err := strconv.ParseFloat(galeraReplLatencyArray[0], 64); err == nil {
+			ch <- prometheus.MustNewConstMetric(
+				galeraReplLatencyDesc, prometheus.GaugeValue, floatVal, "Minimum",
+			)
+		}
+		if floatVal, err := strconv.ParseFloat(galeraReplLatencyArray[1], 64); err == nil {
+			ch <- prometheus.MustNewConstMetric(
+				galeraReplLatencyDesc, prometheus.GaugeValue, floatVal, "Average",
+			)
+		}
+		if floatVal, err := strconv.ParseFloat(galeraReplLatencyArray[2], 64); err == nil {
+			ch <- prometheus.MustNewConstMetric(
+				galeraReplLatencyDesc, prometheus.GaugeValue, floatVal, "Maximum",
+			)
+		}
+		if floatVal, err := strconv.ParseFloat(galeraReplLatencyArray[3], 64); err == nil {
+			ch <- prometheus.MustNewConstMetric(
+				galeraReplLatencyDesc, prometheus.GaugeValue, floatVal, "Standard Deviation",
+			)
+		}
+		if floatVal, err := strconv.ParseFloat(galeraReplLatencyArray[4], 64); err == nil {
+			ch <- prometheus.MustNewConstMetric(
+				galeraReplLatencyDesc, prometheus.GaugeValue, floatVal, "Sample Size",
+			)
+		}
 	}
 
 	return nil
